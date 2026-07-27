@@ -1,0 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --color-bg: #0F1518;
+  --color-surface: #171E24;
+  --color-surface-raised: #1D262D;
+  --color-text-primary: #E8EDF0;
+  --color-text-secondary: #8A97A0;
+  --color-positive: #4FAE7C;
+  --color-negative: #C4594A;
+  --color-accent: #D9A441;
+  --color-border: #2A343B;
+
+  --font-mono: 'JetBrains Mono', 'IBM Plex Mono', monospace;
+  --font-sans: 'Inter', 'IBM Plex Sans', sans-serif;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+}
