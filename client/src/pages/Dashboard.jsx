@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, apiFetch } from '../config';
 
 function Dashboard() {
   const [problems, setProblems] = useState([]); const [count, setCount] = useState({ total: 0 }); const [solved, setSolved] = useState(0); const [error, setError] = useState(null);
   useEffect(() => {
     Promise.all([
-      fetch(`${API_BASE_URL}/api/problems`).then((r) => r.json()), fetch(`${API_BASE_URL}/api/sessions/count`).then((r) => r.json()), fetch(`${API_BASE_URL}/api/sessions/solved`).then((r) => r.json()),
+      apiFetch(`${API_BASE_URL}/api/problems`).then((r) => r.json()), apiFetch(`${API_BASE_URL}/api/sessions/count`).then((r) => r.json()), apiFetch(`${API_BASE_URL}/api/sessions/solved`).then((r) => r.json()),
     ]).then(([problemData, countData, solvedSessions]) => { setProblems(problemData); setCount(countData); setSolved(new Set(solvedSessions.map((s) => String(s.problemId?._id || s.problemId))).size); }).catch(() => setError('Could not load your practice summary.'));
   }, []);
   return <main className="page dashboard-page">

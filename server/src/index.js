@@ -2,11 +2,16 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const problemsRouter = require('./routes/problems');
+const authRouter = require('./routes/auth');
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: process.env.FRONTEND_ORIGIN || 'http://localhost:5173', credentials: true }));
+app.use(cookieParser());
 app.use(express.json());
+
+app.use('/api/auth', authRouter);
 
 app.use('/api/problems', problemsRouter);
 

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Session = require('../models/Session');
 const { extractFeatures } = require('../features/FeatureExtractor');
+const requireAuth = require('../middleware/requireAuth');
 
 const TELEMETRY_TYPES = new Set([
   'session_started', 'problem_loaded', 'session_ended',
@@ -41,11 +42,11 @@ function appendUniqueEvents(session, events) {
   return unique.length;
 }
 
-router.post('/', async (req, res) => {
+router.post('/', requireAuth, async (req, res) => {
   try {
     const eventCheck = validateEvents(req.body.events || []);
     if (!eventCheck.valid) return res.status(400).json({ error: eventCheck.error });
-    const session = new Session(req.body);
+    const session = new Session({ ...req.body, userId: req.user.id });
     const extracted = extractFeatures(session.toObject());
     session.features = extracted.features;
     await session.save();
@@ -56,10 +57,12 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', requireAuth, async (req, res) => {
   try {
     const session = await Session.findById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
+
+    if (session.userId.toString() !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
 
     if (req.body.events !== undefined) {
       const eventCheck = validateEvents(req.body.events);
@@ -91,12 +94,13 @@ router.patch('/:id', async (req, res) => {
 
 // Append telemetry without exposing the rest of the session update contract.
 // This is also suitable for small keepalive/unload flushes from the browser.
-router.post('/:id/events', async (req, res) => {
+router.post('/:id/events', requireAuth, async (req, res) => {
   try {
     const eventCheck = validateEvents(req.body.events);
     if (!eventCheck.valid) return res.status(400).json({ error: eventCheck.error });
     const session = await Session.findById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.userId.toString() !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
     const appended = appendUniqueEvents(session, req.body.events);
     session.features = extractFeatures(session.toObject()).features;
     await session.save();
@@ -107,12 +111,13 @@ router.post('/:id/events', async (req, res) => {
   }
 });
 
-router.post('/:id/analyze', async (req, res) => {
+router.post('/:id/analyze', requireAuth, async (req, res) => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15000);
   try {
     const session = await Session.findById(req.params.id).populate('problemId', 'title');
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.userId.toString() !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
     if (!session.features || typeof session.features !== 'object' || Object.keys(session.features).length === 0) {
       return res.status(400).json({ error: 'Session has no extracted features yet' });
     }
@@ -147,9 +152,28 @@ router.post('/:id/analyze', async (req, res) => {
   }
 });
 
-router.get('/solved', async (req, res) => {
+router.get('/history', requireAuth, async (req, res) => {
   try {
-    const sessions = await Session.find({ solved: true }).populate('problemId', 'title difficulty category').lean();
+    const sessions = await Session.find({ userId: req.user.id, solved: true })
+      .sort({ createdAt: -1 })
+      .populate('problemId', 'title')
+      .lean();
+    res.json(sessions.map((session) => ({
+      id: session._id,
+      problemId: session.problemId?._id || session.problemId,
+      problemTitle: session.problemId?.title || 'Untitled problem',
+      createdAt: session.createdAt,
+      aiReport: session.aiReport,
+    })));
+  } catch (err) {
+    console.error('Failed to fetch session history:', err.message);
+    res.status(500).json({ error: 'Could not fetch session history' });
+  }
+});
+
+router.get('/solved', requireAuth, async (req, res) => {
+  try {
+    const sessions = await Session.find({ solved: true, userId: req.user.id }).populate('problemId', 'title difficulty category').lean();
     res.json(sessions);
   } catch (err) {
     console.error('Failed to fetch solved sessions:', err.message);
@@ -157,9 +181,9 @@ router.get('/solved', async (req, res) => {
   }
 });
 
-router.get('/count', async (req, res) => {
+router.get('/count', requireAuth, async (req, res) => {
   try {
-    const total = await Session.countDocuments({});
+    const total = await Session.countDocuments({ userId: req.user.id });
     res.json({ total });
   } catch (err) {
     console.error('Failed to get session counts:', err.message);

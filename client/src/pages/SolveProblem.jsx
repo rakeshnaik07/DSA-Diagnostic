@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Editor from '@monaco-editor/react';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, apiFetch } from '../config';
 import { TelemetryManager } from '../telemetry/TelemetryManager';
 import { createEditorTelemetry } from '../telemetry/editorTelemetry';
 import SessionReport from '../components/SessionReport';
@@ -55,9 +55,10 @@ function SolveProblem() {
   const editorRef = useRef(null);
   const editorTelemetryCleanupRef = useRef(null);
   const reportRequestedRef = useRef(false);
+  const sessionStartingRef = useRef(false);
 
   useEffect(() => {
-    fetch(`${API_BASE_URL}/api/problems/${id}`)
+    apiFetch(`${API_BASE_URL}/api/problems/${id}`)
       .then((res) => res.json())
       .then((data) => {
         setProblem(data);
@@ -78,7 +79,7 @@ function SolveProblem() {
     if (sessionIdRef.current) return sessionIdRef.current;
     if (sessionCreationRef.current) return sessionCreationRef.current;
 
-    sessionCreationRef.current = fetch(`${API_BASE_URL}/api/sessions`, {
+    sessionCreationRef.current = apiFetch(`${API_BASE_URL}/api/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -130,23 +131,28 @@ function SolveProblem() {
   }, [sessionStarted]);
 
   const startSession = async () => {
-    if (!problem || sessionStarted) return;
-    const activeSessionId = await createSession();
-    if (!activeSessionId) return;
-    telemetryRef.current = new TelemetryManager({
-      sessionId: activeSessionId,
-      onError: (error) => console.error('Telemetry flush failed:', error.message),
-    });
-    const startedAt = Date.now();
-    setSessionStart(startedAt);
-    setElapsedMs(0);
-    setSessionEnded(false);
-    setSessionStarted(true);
-    telemetryRef.current.recordEvent('session_started', { problemId: problem._id });
-    telemetryRef.current.recordEvent('problem_loaded', { problemId: problem._id });
-    telemetryRef.current.start();
-    if (editorRef.current) {
-      editorTelemetryCleanupRef.current = createEditorTelemetry({ manager: telemetryRef.current, editor: editorRef.current });
+    if (!problem || sessionStarted || sessionStartingRef.current || telemetryRef.current) return;
+    sessionStartingRef.current = true;
+    try {
+      const activeSessionId = await createSession();
+      if (!activeSessionId) return;
+      telemetryRef.current = new TelemetryManager({
+        sessionId: activeSessionId,
+        onError: (error) => console.error('Telemetry flush failed:', error.message),
+      });
+      const startedAt = Date.now();
+      setSessionStart(startedAt);
+      setElapsedMs(0);
+      setSessionEnded(false);
+      setSessionStarted(true);
+      telemetryRef.current.recordEvent('session_started', { problemId: problem._id });
+      telemetryRef.current.recordEvent('problem_loaded', { problemId: problem._id });
+      telemetryRef.current.start();
+      if (editorRef.current) {
+        editorTelemetryCleanupRef.current = createEditorTelemetry({ manager: telemetryRef.current, editor: editorRef.current });
+      }
+    } finally {
+      sessionStartingRef.current = false;
     }
   };
 
@@ -184,7 +190,7 @@ function SolveProblem() {
     if (Object.keys(body).length === 0) return;
 
     try {
-      await fetch(`${API_BASE_URL}/api/sessions/${sessionId}`, {
+      await apiFetch(`${API_BASE_URL}/api/sessions/${sessionId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -212,6 +218,7 @@ function SolveProblem() {
   }, [sessionId, flushSessionMetadata]);
 
   const handleCodeChange = (value = '') => {
+    if (!sessionStarted && !sessionStartingRef.current) startSession();
     const now = Date.now();
 
     let firstLineTimeValue = firstLineTime;
@@ -236,7 +243,7 @@ function SolveProblem() {
   };
 
   const executeCode = async () => {
-    const res = await fetch(`${API_BASE_URL}/api/execute`, {
+    const res = await apiFetch(`${API_BASE_URL}/api/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ code, problemId: problem._id }),
@@ -295,11 +302,11 @@ function SolveProblem() {
       try {
         activeSessionId = sessionId || sessionIdRef.current || (sessionCreationRef.current && await sessionCreationRef.current);
         if (activeSessionId) {
-          await fetch(`${API_BASE_URL}/api/sessions/${activeSessionId}`, {
+          await apiFetch(`${API_BASE_URL}/api/sessions/${activeSessionId}`, {
             method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
           });
         } else {
-          const created = await fetch(`${API_BASE_URL}/api/sessions`, {
+          const created = await apiFetch(`${API_BASE_URL}/api/sessions`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ problemId: problem._id, events: [], firstLineTimeMs: firstLineTime, ...body }),
           });
@@ -334,7 +341,7 @@ function SolveProblem() {
     setReportLoading(true);
     setReportError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sessions/${activeSessionId}/analyze`, { method: 'POST' });
+      const response = await apiFetch(`${API_BASE_URL}/api/sessions/${activeSessionId}/analyze`, { method: 'POST' });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Could not generate session report');
       setReport(payload.report);

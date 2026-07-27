@@ -1,4 +1,4 @@
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, apiFetch } from '../config';
 
 const FLUSH_INTERVAL_MS = 10000;
 
@@ -34,7 +34,7 @@ export class TelemetryManager {
     this.flushInFlight = true;
     const batch = this.buffer.slice();
     try {
-      const response = await fetch(`${API_BASE_URL}/api/sessions/${this.sessionId}/events`, {
+      const response = await apiFetch(`${API_BASE_URL}/api/sessions/${this.sessionId}/events`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ events: batch }),

@@ -32,6 +32,7 @@ const aiReportSchema = new mongoose.Schema({
 }, { _id: false });
 
 const sessionSchema = new mongoose.Schema({
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   problemId: { type: mongoose.Schema.Types.ObjectId, ref: 'Problem', required: true },
   events: [eventSchema],
   firstLineTimeMs: { type: Number },

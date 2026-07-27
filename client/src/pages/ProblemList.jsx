@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, apiFetch } from '../config';
 
 function ProblemList() {
   const [problems, setProblems] = useState([]); const [solvedIds, setSolvedIds] = useState(new Set()); const [query, setQuery] = useState(''); const [difficulty, setDifficulty] = useState('All'); const [category, setCategory] = useState('All'); const [loading, setLoading] = useState(true); const [error, setError] = useState(null);
-  useEffect(() => { Promise.all([fetch(`${API_BASE_URL}/api/problems`).then((r) => r.json()), fetch(`${API_BASE_URL}/api/sessions/solved`).then((r) => r.json())]).then(([ps, sessions]) => { setProblems(ps); setSolvedIds(new Set(sessions.map((s) => String(s.problemId?._id || s.problemId)))); }).catch(() => setError('Could not load the problem library.')).finally(() => setLoading(false)); }, []);
+  useEffect(() => { Promise.all([apiFetch(`${API_BASE_URL}/api/problems`).then((r) => r.json()), apiFetch(`${API_BASE_URL}/api/sessions/solved`).then((r) => r.json())]).then(([ps, sessions]) => { setProblems(ps); setSolvedIds(new Set(sessions.map((s) => String(s.problemId?._id || s.problemId)))); }).catch(() => setError('Could not load the problem library.')).finally(() => setLoading(false)); }, []);
   const categories = [...new Set(problems.map((p) => p.category))].sort();
   const filtered = useMemo(() => problems.filter((p) => p.title.toLowerCase().includes(query.toLowerCase()) && (difficulty === 'All' || p.difficulty === difficulty) && (category === 'All' || p.category === category)), [problems, query, difficulty, category]);
   if (loading) return <main className="page"><p>Loading problem library...</p></main>; if (error) return <main className="page"><p className="error">{error}</p></main>;
