@@ -7,7 +7,7 @@ const cookieOptions = { httpOnly: true, secure: process.env.NODE_ENV === 'produc
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function setToken(res, user) { res.cookie('token', generateToken(user._id), cookieOptions); }
-function publicUser(user) { return { id: user._id.toString(), email: user.email }; }
+function publicUser(user) { return { id: user._id.toString(), email: user.email, role: user.role }; }
 
 router.post('/register', async (req, res) => {
   const email = typeof req.body.email === 'string' ? req.body.email.trim().toLowerCase() : '';
@@ -35,7 +35,7 @@ router.post('/logout', (req, res) => { res.clearCookie('token', cookieOptions); 
 router.get('/me', async (req, res) => {
   try {
     const payload = verifyToken(req.cookies?.token);
-    const user = await User.findById(payload.userId).select('_id email');
+    const user = await User.findById(payload.userId).select('_id email role');
     if (!user) throw new Error('User not found');
     res.json({ user: publicUser(user) });
   } catch (err) { res.status(401).json({ error: 'Not authenticated' }); }
